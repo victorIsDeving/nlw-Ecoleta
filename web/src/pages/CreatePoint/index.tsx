@@ -1,10 +1,9 @@
-import React, { useEffect, useState, ChangeEvent } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, ChangeEvent, FormEvent } from 'react';
+import { Link, useHistory } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
 import './styles.css';
 import logo from '../../assets/logo.svg';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import { LeafletMouseEvent } from 'leaflet';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import axios from 'axios';
 import api from '../../services/api';
 
@@ -43,16 +42,17 @@ const CreatePoint = () => {
     const [selectedUf, setSelectedUf] = useState('0');
     const [selectedCity, setSelectedCity] = useState('0');
     const [selectedItems, setSelectedItems] = useState<number[]>([]);
-    const [selectedPosition, setSelectedPosition] = useState<[number, number]>([0, 0]);
 
-    // useEffect(() => {
-    //     navigator.geolocation.getCurrentPosition(position => {
-    //         console.log(position);
-    //         const { latitude, longitude } = position.coords;
+    const history = useHistory();
 
-    //         setInitialPosition([latitude, longitude]);
-    //     });
-    // }, []);
+    useEffect(() => {
+        navigator.geolocation.getCurrentPosition(position => {
+            console.log(position);
+            const { latitude, longitude } = position.coords;
+
+            setInitialPosition([latitude, longitude]);
+        });
+    }, []);
 
     useEffect(() => {
         api.get('items').then(response => {
@@ -82,30 +82,6 @@ const CreatePoint = () => {
         });
     }, [selectedUf]);
 
-    // function AddMarkerToClick() {
-    //     const [position, setPosition] = useState({ latitude: 0, longitude: 0 });
-        
-    //     const map = useMapEvents({
-    //       click(event) {
-    //         const { lat, lng } = event.latlng;
-    //         setPosition({
-    //           latitude: lat,
-    //           longitude: lng,
-    //         });
-    //       },
-    //    });
-        
-    //     return (
-    //       position.latitude !== 0 ? (
-    //         <Marker
-    //           position={[position.latitude, position.longitude]}
-    //           interactive={false}
-    //           icon={mapIcon}
-    //         />
-    //       ) : null
-    //     );
-    // }
-
     function handleSelectedUf(event: ChangeEvent<HTMLSelectElement>) {
         const uf = event.target.value;
 
@@ -118,13 +94,6 @@ const CreatePoint = () => {
         setSelectedCity(city);
     };
 
-    function handleMapClick(event: LeafletMouseEvent) {
-        setSelectedPosition([
-            event.latlng.lat,
-            event.latlng.lng,
-        ]);
-    };
-
     function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
         const { name, value } = event.target;
 
@@ -132,7 +101,40 @@ const CreatePoint = () => {
     };
 
     function handleSelectItem(id: number) {
-        setSelectedItems([id]);
+        const alreadySelected = selectedItems.findIndex(item => item === id);
+        if (alreadySelected >= 0) {
+            const filteredItems = selectedItems.filter(item => item !== id);
+            setSelectedItems(filteredItems);
+        } else {
+            setSelectedItems([ ...selectedItems, id ]);
+        };
+    };
+
+    async function handleSubmit(event: FormEvent) {
+        event.preventDefault();
+
+        const { name, email, whatsapp } = formData;
+        const uf = selectedCity;
+        const city = selectedCity;
+        // const [latitude, longitude] = selectedPosition; Esse vai inserir quando corrigir o problema da posição do marker no mapa
+        const items = selectedItems;
+
+        const data = { 
+            name,
+            email,
+            whatsapp,
+            uf,
+            city,
+            // latitude,
+            // longitude,
+            items
+        };
+
+        await api.post('/points', data);
+
+        alert('Ponto de coleta criado!');
+
+        history.push('/');
     };
 
     return (
@@ -146,7 +148,7 @@ const CreatePoint = () => {
                 </Link>
             </header>
 
-            <form>
+            <form onSubmit={handleSubmit}>
                 <h1>Cadastro do <br /> ponto de coleta</h1>
 
                 <fieldset>
@@ -194,16 +196,16 @@ const CreatePoint = () => {
                     </legend>
 
                     <MapContainer 
-                        center={[-23.5546723, -46.6550871]} 
+                        center={initialPosition} 
                         zoom={ 17 } 
                         scrollWheelZoom={true}
                         // método para adicionar um marker no mapa com um click
-                    >
+                        >
                         <TileLayer
                             attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
-                        <Marker position={selectedPosition} />
+                        <Marker position={initialPosition} />
                     </MapContainer>
 
                     <div className="field-group">
@@ -249,7 +251,7 @@ const CreatePoint = () => {
                                 key={item.id} 
                                 onClick={() => handleSelectItem(item.id)}
                                 className={selectedItems.includes(item.id) ? 'selected' : ''}
-                            >
+                                >
                                 <img src={item.image_url} alt={item.title} />
                                 <span>{item.title}</span>
                             </li>                  
